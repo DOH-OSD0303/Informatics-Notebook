@@ -1,0 +1,882 @@
+---
+title: "Great Big Codebook of Everything"
+author: "Odane Dunbar"
+date: "Informatician Magician"
+output: 
+    html_document:
+        toc: true
+        number_sections: false
+        toc_float: true
+---
+
+```{css, echo=FALSE}
+h1{
+    text-align: center;
+    color: black;
+    font-weight: bold;
+}
+
+h4,h5{
+    text-align: center;
+    color: black;
+}
+
+h6{
+    text-align: center;
+    color: black;
+}
+```
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(eval = FALSE)
+```
+
+## Packages  
+```{r}
+pacman::p_load(
+  tidyverse,  # for data manipulation
+  tidymodels, # for machine learning
+  sqldf,      # for SQL in R
+  here,       # for filepath
+  glue,       # for concating strings 
+  rio,        # for import/export of files
+  magrittr,   # for piping
+  readxl,     # for importing Excel files
+  haven,      # for reading/writing SAS files
+  lubridate,  # for date manipulation
+  skimr,      # for summary/descriptive statistics 
+  stringr,    # for handling strings
+  fastLink,   # for linking data frames using the fastLink() function
+  data.table, # for grouping and cleaning data df[i,j,by]
+  janitor,    # data cleaning and tables (tabyl() function useful in identifying dupes)
+  rmarkdown   # for producing PDFs, Word Documents, PowerPoint, and HTML files
+)
+```
+
+## File Maniulation in R
+
+### Zip/Unzip  
+
+Zipping all files of a specific file type in a directory.  
+```{r}
+library(plyr)
+list.files('file_path')
+my_path = "file_path"
+from_dir <-list.files(path = my_path, pattern = "*.csv",full.names = TRUE)
+to_dir <-file.path((my_path))
+ldply(.data = from_dir, .fun = zip, exdir = "file_path")
+```
+
+Zip package is needed to bypass base zip function RTools requirement.  
+
+```{r}
+unzip("file_path/starwars.zip")
+zip::zip("starwars.zip","starwars.csv")
+```
+
+### Helpful Functions   
+
+```{r}
+dir.create() # Create a new folder
+file.create() # create a new file
+sapply(paste0("file", 1:100,".txt"), file.create) # create multiple files
+all_files <- lapply(list.files(pattern = ".csv"),read.csv) # read in all files
+unlink("file_name") # delete file
+file.remove("file_name")
+unlink("directory", recursive=TRUE) # delete a directory
+file.move("file name","destination directory") # move file (not sure if this function is depricated)
+
+```
+
+### Moving Files   
+
+```{r}
+current <- ("from_filepath")
+new1 <- ("to_filepath")
+
+files <- list.files(current, "*.csv", ignore.case = TRUE, all.files = TRUE)
+
+file.copy(file.path(current,files), new1, overwrite = TRUE)
+```
+
+### Renaming Files   
+
+```{r}
+library(tidyverse)
+
+new1 <- ("file_path")
+files1 <- list.files(new1, ".", ignore.case = TRUE, all.files = FALSE)
+
+from_files <- glue::glue("{new1}{files1}")
+
+to_files <- glue::glue("{from_files %>% gsub('.csv','_',.)}{Sys.time()}.csv")
+
+file.rename(files1,to_files)
+```
+
+### Deleting Files  
+
+```{r}
+# deletes entire folder
+unlink("file_path",recursive = TRUE)
+
+#deletes specific file
+unlink("file_name.csv")
+```
+
+## Data Linkage Workflow
+
+**Linking from scratch**  
+
+- Requirments Gathering  
+
+- Data Exploration  
+
+- Quering/Linking  
+
+- Validation  
+
+**Adopting existing linkage**  
+
+- Identify who is responsible for the code.  
+
+- Set up time to walk through what the code is doing i.e knowledge share.  
+
+- What is needed to maintain the code? Any breakpoints ? Known error messages?  
+
+- Obtain any documentation.  
+
+- Spend time understanding the code for ownership.  
+
+## Dictionary
+
+**Deterministic** means that the variables have already been determined i.e known variables.  
+
+**Probabilistic** are more unknowns and uses probability to infer relationships between data.  
+
+## Data Cleaning Pipeline
+```{r}
+# CLEANING 'PIPE' CHAIN (starts with raw data and pipes it through cleaning steps)
+
+
+# begin cleaning pipe chain
+
+linelist <- linelist_raw %>%
+    
+    # standardize column name syntax
+    janitor::clean_names() %>% 
+    
+    # manually re-name columns
+    # NEW name             # OLD name
+    rename(date_infection       = infection_date,
+           date_hospitalisation = hosp_date,
+           date_outcome         = date_of_outcome) %>% 
+    
+    # remove column
+    remove_empty() %>% 
+    select(-c(row_num, merged_header, x28)) %>% 
+    
+    # de-duplicate
+    get_dupes() %>%
+    distinct()  %>% 
+    
+    # add column
+    mutate(bmi = wt_kg / (ht_cm/100)^2) %>%     
+    
+    # convert class of columns
+    mutate(across(contains("date"), as.Date), 
+           generation = as.numeric(generation),
+           age        = as.numeric(age)) %>% 
+    
+    # add column: delay to hospitalisation
+    mutate(days_onset_hosp = as.numeric(date_hospitalisation - date_onset)) %>% 
+    
+    # clean values of hospital column
+    mutate(hospital = recode(hospital,
+                             # OLD = NEW
+                             "Mitylira Hopital"  = "Military Hospital",
+                             "Mitylira Hospital" = "Military Hospital",
+                             "Military Hopital"  = "Military Hospital",
+                             "Port Hopital"      = "Port Hospital",
+                             "Central Hopital"   = "Central Hospital",
+                             "other"             = "Other",
+                             "St. Marks Maternity Hopital (SMMH)" = "St. Mark's Maternity Hospital (SMMH)"
+    )) %>% 
+    
+    mutate(hospital = replace_na(hospital, "Missing")) %>% 
+    
+    # create age_years column (from age and age_unit)
+    mutate(age_years = case_when(
+        age_unit == "years" ~ age,
+        age_unit == "months" ~ age/12,
+        is.na(age_unit) ~ age,
+        TRUE ~ NA_real_)) %>% 
+    
+    mutate(
+        # age categories: custom
+        age_cat = epikit::age_categories(age_years, breakers = c(0, 5, 10, 15, 20, 30, 50, 70)),
+        
+        # age categories: 0 to 85 by 5s
+        age_cat5 = epikit::age_categories(age_years, breakers = seq(0, 85, 5))) %>% 
+    
+    # ABOVE ARE UPSTREAM CLEANING STEPS ALREADY DISCUSSED
+filter(
+    # keep only rows where case_id is not missing
+    !is.na(case_id),  
+    
+    # also filter to keep only the second outbreak
+    date_onset > as.Date("2013-06-01") | (is.na(date_onset) & !hospital %in% c("Hospital A", "Hospital B")))
+```
+
+## Data Exploration
+```{r}
+# calculates frequency statistics
+freq <- janitor::tabyl(df2,species) %>% 
+    adorn_pct_formatting(digits = 0, affix_sign = TRUE) %>% 
+    adorn_totals(where = "row")
+```
+
+
+## Missing Data
+```{r}
+# Using ifelse,case_when, and replace_na to work with missing data
+data <- starwars %>% head()
+
+d1<- data %>% 
+        mutate(HairColor = ifelse(is.na(hair_color),"Bald",hair_color)) %>% 
+        mutate(HairColor2 = case_when(is.na(hair_color)  ~ "Bald",TRUE ~ hair_color)) %>% 
+        mutate(HairColor3 = replace_na(hair_color,"Bald")) %>% 
+        select(name,hair_color,HairColor,HairColor2,HairColor3)  
+
+```
+
+## Combining Objects
+```{r}
+df <- data.frame(
+first_name = "Odane",
+last_name = "Dunbar")
+
+df1 <- df %>% mutate(full_name = paste(first_name,last_name))
+df2 <- tidyr::unite(df, col= "full_name",dplyr::contains("_name"), sep = " ")
+```
+
+## Duplication  
+```{r}
+# DEDUPLICATION USING DISTINCT AND JANITOR
+library(janitor)
+library(tidyverse)
+
+starwars %>% tabyl(name,species) # frequency table
+
+starwars %>% janitor::get_dupes() # checks and returns dupes
+
+starwars %>% distinct(name,species, .keep_all = TRUE) # keeps first record and deletes all dupes
+
+```
+
+## Statistics  
+
+**p-value** = probability value aka alpha (.05)  
+
+**null hypothesis** - there are no difference between the groups (H0)  
+
+**alternative hypothesis** - there is a difference between the groups (H1)  
+
+**correlation coefficient** is a number between negative one and one. It looks at the relationship between two numerical variables. If the coefficient is 0 , there is no relationship. The closer to -1 represents a strong negative correlation. The closer to 1 represents a strong positive correlation.  
+
+It doesn't matter which variables are on the x and y axis. The correlation coefficient will still be the same.   
+
+With two categorical variables, H1 is dependent on H0(independent). If p value is less than alpha, we reject the null hypothesis (H0) and the observation (H1) is statistically significant.   
+
+
+## Between Function
+```{r}
+df %>% filter(between(date_column, as.Date('2022-01-20'), as.Date('2022-02-20')))
+```
+
+## Glue
+```{r}
+head(mtcars) %>% glue::glue_data("{rownames(.)} has {hp} hp")
+```
+
+## Data EditR
+
+Data EditR serves as a drag and drop data exploration tool.This allows one to quickly finlter, create columns etc on the fly and then output the results as a dataframe or flat file.
+```{r}
+library(DataEditR)
+data_edit(starwars)
+```
+## Esquisse
+
+Esquisse is the ggplot version of DataEditR. Esquisse allows you to quickly create visuals that you can then output the code and add to your workflow.
+```{r}
+library(esquisse)
+
+esquisser(starwars)
+```
+## Fuzzy Matching
+Fuzzy Matching is a probabilistic linking approach that utilizes algorithms such as the Levenshtien distance to predict matches.
+```{r}
+library(stringdist)
+
+names <- list("123 Bird Av", "29 Stone Ct", "Meadow Brooks")
+names1 <- list("Stone Ct", "Meadow", "13 Bird")
+
+amatch(names,names1, maxDist = 10)
+
+names[[1]]
+names1[[3]]
+```
+
+## Importing Multiple Files
+```{r}
+library(purrr)
+library(furrr)
+# importants multiple files within a directory
+file_path <- fs::dir_ls("H:/Data")
+
+Final <- file_path %>%
+  map(function(path){
+      read_csv(path)
+  })
+
+Sample <- Final[[1]]
+View(Sample)
+```
+
+## Purrr/Furrr
+```{r}
+my_function <- function(x){
+  x * 2
+  
+}
+  
+First10 <- c(1:10)
+First20 <- c(11:20)
+
+#passing one argument
+Output <- map(First10,my_function)
+
+my_function(First10)
+
+#passing two arguments
+my_function2 <- function(x,y){
+  x * 2
+  y + 2
+}
+Output2 <- map2(First10,First20,my_function2)
+
+my_function2(First10,First20)
+
+# passing multiple arguments
+
+my_function3 <- function(x,y,z){
+  x * 2
+  y + 2
+  z - 2
+  
+}
+Output2 <- map2_dbl(First10,First20,my_function2)
+
+View(Output2)
+```
+
+## Health Level Seven (HL7)
+
+> "HL7 (Health Level Seven) is a set of standards that facilitate the electronic transmission of healthcare data 
+between applications. HL7 is not an application or software, but a framework that supports interoperability 
+between systems. The building blocks of HL7 messaging include messages, segments, fields, and components." - *Public Health Informatics Institute*
+
+[Anatomy of a HL7 Message](https://www.informaticsacademy.org/content/courses/iis/HL7Basics/BreakingdownHL7Message.pdf)
+
+[HL7 Messaging Acronyms](https://www.informaticsacademy.org/content/courses/iis/HL7Basics/HL7MessagingAcronyms.pdf)
+
+## Application Programming Interface  
+
+**Definition** Allows user to request data from the web. A **request** or call is what the user sends, the **response** is what the server sends back. Status code 200 is good, everything else indicates a problem of some sort.    
+
+- Keywords  
+
+    - **GET** - Request information from the server.  
+    
+    - **POST** - Create a new resource.  
+    
+    - **PUT** - Update an excisting resource.  
+    
+    - **DELETE** - delete existing resource
+    
+[HTTP The Protocol Every Web Developer Must Know](https://code.tutsplus.com/tutorials/http-the-protocol-every-web-developer-must-know-part-1--net-31177)  
+
+[HTTP Made Really Easy](https://www.jmarshall.com/easy/http/)  
+    
+### Build URL  
+```{r}
+library(httr)
+url <- "http://httpbin.org/get"
+```
+
+### Call API  
+```{r}
+api_call <- httr::GET(url)
+```
+
+### Check Response  
+```{r}
+api_call$status_code
+```
+
+### Convert  
+```{r}
+# convert raw data to character
+api_char <- base::rawToChar(api_call$content)
+```
+
+```{r}
+# convert char data to JSON
+api_JSON <- jsonlite::fromJSON(api_char, flatten = TRUE)
+```
+### Create DataFrame  
+```{r}
+df <- api_JSON
+```
+
+### Looping API Calls 
+[Statistics Globe](https://statisticsglobe.com/api-in-r)
+```{r}
+counties <- c('01001', '01003', '01005')
+
+base <- 'https://api.covidactnow.org/v2/county/'
+county <- '06037'
+info_key <- '.timeseries.json?apiKey=xyxyxy'
+ 
+for(i in 1:length(counties)) {
+ 
+  # Build the API URL with the new county code
+  API_URL <- paste0(base, counties[i], info_key)
+ 
+  # Store the raw and processed API results in temporary objects
+  temp_raw <- GET(API_URL)
+  temp_list <- jsonlite::fromJSON(rawToChar(temp_raw$content), flatten = TRUE)
+ 
+  # Add the most recent results to your data frame
+  df <- rbind(df, temp_list$actualsTimeseries)
+}
+```
+## Python  
+
+### Data Types  
+
+### Importing    
+```{python}
+py_install(c("pyodbc", "pandas"), envname = "r-reticulate", pip = TRUE)
+```
+```{r}
+library(reticulate)
+py_install("pandas")
+```
+To use a R object in Python use r.df_name. Subsequently, to use a Python object in R use py$df_name.  
+```{python}
+import pandas as pd
+df = pd.read_csv('H:\starwars.csv')
+```
+
+### Cleaning Data   
+```{python}
+df.dropna()               # removes null
+df['height'].to_string()  # convert from numeric to character
+df.drop_duplicates(inplace = True) # remove dupes
+```
+
+### Selecting Data  
+```{python}
+Table1 = df['name'] # selecting one variable
+Table2 = df[['name','height']] #selecting multiple variables
+
+```
+
+### Filtering Data  
+```{python}
+Table2[Table2.height > 95] # using logical operators
+
+Table2[(Table2.height > 95) & (Table2.height < 200)] # using multiple operators
+
+t2 = ['Luke Skywalker']
+Table2[Table2.name.isin(t2)] # using isin similar to %in% in R
+
+Table2[Table2.name.str.startswith('L')] # using string
+
+Table2[~Table2.name.str.startswith('L')] # tilde in python means not
+
+Table2.query('height > 95') # using the query option
+```
+
+### Grouping Variables  
+
+Summary Statistics
+```{python}
+df.count() # count of column values
+df.describe() # descriptive statistics
+df.size # column sizes
+
+```
+Using Group By Function
+```{python}
+t1 = df.groupby('species') # group by  
+t1.first() # glimpse at first group
+```
+```{python}
+t1 = df.groupby('species').sum() # totals by species
+```
+
+
+### Linking DataFrames 
+
+### merge()   
+```{python}
+
+NewTable = pd.merge(df1,df2)  # inner join  
+
+NewTable = pd.merge(df1,df2, how= "outer", on=["var1","var2"])  # outer join    
+
+NewTable = pd.merge(df1,df2, how= "left", on=["var1","var2"])  # left join
+```
+
+### .join()  
+
+### concat()   
+```{python}
+
+NewTable = pd.concat([df1,df2])
+```
+
+### Creating/Renaming Columns  
+```{python}
+df["NewColumn"] = df["OldColumn"] # renaming column
+
+NewColumn = df.rename(columns={"OldColumn" : "NewColumn"}) # renaming column
+
+df["NewColumn"] = df["OldColumn"] * 2 # creating new column
+
+```
+
+### Dealing with Dates  
+```{python}
+df = pd.read_csv("dates_text.csv", parse_dates=["date"]) # one date column
+
+df = pd.read_csv("dates_text.csv", parse_dates=["date","another date column"]) #multiple date columns
+
+df["date column"].dt.year # accepts year, month, day and weekday
+
+pd.date_range(start="12/01/2022", end="12/07/2022")  # useful for daterange
+```
+
+### Creating Functions  
+```{python}
+def my_function():              # creating functions
+  print("Hello from a function")
+
+my_function()                   # calling function
+
+def my_function(fname):         # passing arguments
+  print(fname + " Dunbar")
+
+my_function("Odane")
+
+
+def my_function(fname, lname):  # passing multiple arguments
+  print(fname + " " + lname)
+
+my_function("Odane", "Dunbar")
+
+```
+
+### Map()  
+
+Syntax map(fun, iter)  
+
+- Parameters:   
+
+    - fun : It is a function to which map passes each element of given iterable.  
+    
+    - iter : It is a iterable which is to be mapped.  
+    
+    - return : the result to be returned  
+    
+```{python}
+# Return double of n
+def addition(n):
+    return n + n
+  
+# We double all numbers using map()
+numbers = (1, 2, 3, 4)
+result = map(addition, numbers)
+```
+
+### Loops   
+
+For Loop
+```{python}
+names = ["Odane","Kemar","Dane"]
+
+for name in names :
+  print(name)
+```
+```{python}
+for x in range(5):
+  print(x)
+```
+While Loop   
+```{python}
+names = ["Odane","Kemar","Dane"]
+
+i = 0
+
+while i < len(names):
+  print("Test Loop")
+  i += 1
+  if 1 == 1:
+    continue
+  print(i)
+else:
+    print("No Longer Less than length of df")
+```
+
+### Exporting  
+```{python}
+# Formats to choose from to_csv, to_excel
+
+df.to_csv(r'Path where you want to store the exported CSV file\File Name.csv', index = False)
+```
+
+## Apache Spark   
+
+> "Apache Spark™ is a multi-language engine for executing data engineering, data science, and machine learning on single-node machines or clusters." - [Apache.org](https://spark.apache.org/)  
+
+### [PySpark](https://spark.apache.org/docs/latest/api/python/getting_started/quickstart_df.html)  
+
+```{python}
+$ pip install pyspark
+
+$ pyspark
+```
+
+**Machine Learning Workflow**   
+```{python}
+# Every record contains a label and feature vector
+df = spark.createDataFrame(data, ["label", "features"])
+
+# Split the data into train/test datasets
+train_df, test_df = df.randomSplit([.80, .20], seed=42)
+
+# Set hyperparameters for the algorithm
+rf = RandomForestRegressor(numTrees=100)
+
+# Fit the model to the training data
+model = rf.fit(train_df)
+
+# Generate predictions on the test dataset.
+model.transform(test_df).show()
+```
+
+**Analytics & Data Science**   
+```{python}
+df = spark.read.csv("accounts.csv", header=True)
+
+# Select subset of features and filter for balance > 0
+filtered_df = df.select("AccountBalance", "CountOfDependents").filter("AccountBalance > 0")
+
+# Generate summary statistics
+filtered_df.summary().show()
+```
+
+### Sparklyr  
+
+## Regular Expressions  
+
+Using **in**  
+
+```{python}
+name = "Odane Dunbar"
+test = "Odane"
+
+test in name
+```
+Using **in** with **if/else** statement  
+
+```{python}
+names = ["Odane","Kemar","Dane"]
+test_word = 'Kemar'
+
+if test_word in names: 
+  print(test_word)
+  
+elif test_word == "Kemar":
+  print("Other Name")
+  
+else:
+    print("Not Found")
+    
+```
+## Python Tidyverse  
+
+The [siuba](https://github.com/machow/siuba) package allows you to use tidyverse verbs such as **select, filter, mutate, summarize and arrange** in Python. Also, the **group_by** verb can be used as well as piping using the ">>" symbol.   
+
+```{python}
+from palmerpenguins import load_penguins
+penguins = load_penguins()
+from siuba import group_by, summarize, _
+
+(penguins
+  >> group_by(_.species)
+  >> summarize(n = _.species.count())
+)
+```
+Other useful tidyverse-like packages in Python:  
+
+- plotnine = ggplot2  
+
+- pyjanitor = janitor  
+
+- [tidypandas](https://github.com/talegari/tidypandas) = tidyverse   
+
+- [plydata](https://github.com/has2k1/plydata) = dplyr   
+
+- [datar](https://github.com/pwwang/datar)
+
+## Databricks {.tabset .tabset-fade .tabset-pills}
+
+### SQL
+
+**Little to no change needed to convert SQL code to Databricks**
+
+### R
+**Prevents numerous error messages from appearing**  
+```{r}
+options(warn=-1) 
+```
+
+**Load packages and create Spark connection**  
+```{r}
+# run if call to library(sparklyr) doesn't work 
+# install.packages("sparklyr")
+
+library(sparklyr)
+library(tidyverse)
+
+sc <-
+  spark_connect(
+    method = "databricks"
+    )
+```
+
+**View available databases**
+```{r}
+src_databases(sc)
+```
+
+**Point Databricks notebook to the table you wish to use**
+```{r}
+tbl_change_db(sc, "table name here")
+```
+
+**Read table into dataframe**
+```{r}
+tbl_change_db(sc, "table name here") #if you need to change tables
+Output <- spark_read_table(sc, "table name here", memory = FALSE) 
+```
+
+### Python
+**Database name can be used as a prefix, no need to point to table like with R**
+```{python}
+import pandas as pd #pyspark comes preloaded in Databricks
+
+df = spark.read.table("dbo.table name here").count()
+```
+
+## Git & GitHub for R
+For step by step instructions on connecting R/RStudio and Git/GitHub visit [here](https://happygitwithr.com/index.html).  
+
+Git/GitHub [Cheatsheet](https://training.github.com/downloads/github-git-cheat-sheet/).  
+
+### GitHub Workflow
+
+- Clone Repository/ Pull Down Changes.    
+
+- Create new branch.   
+
+- Open file
+
+- Make changes to code.
+
+- Save changes.
+
+- Move saved file from unstaged to stage.   
+
+- Create commit message.
+
+- Push changes to GitHub
+
+- On GitHub, review changes and merge with main branch.  
+
+## Machine Learning  
+
+### Data Science Lifecycle  
+
+- Data Collection  
+
+- Data Cleaning  
+
+- Exploratory Data Analysis(EDA)  
+
+- Model Building   
+
+    - What question is the model answering? Establish          hypothesis.   
+    
+    - Obtain data that answers research question.  
+    
+    - Clean, prepare and manipulate the data.   
+    
+    - Train Model  
+    
+    - Test Model  
+    
+    - Evaluate/Improve  
+
+- Model Deployment  
+
+### ML Resources  
+[Tidymodeling Book](https://www.tmwr.org/) Tidy Modeling with R   
+
+[Tidymodels Package](https://www.tidymodels.org/) R Package for ML   
+
+## Misc  
+
+### Reference   
+
+```{r}
+table <- as.data.frame(mtcars)
+
+View(table)
+
+table2 <- filter(table,mpg >= 21)
+
+combined <- bind_rows(table,table2)
+
+View(select(filter(table,mpg >= 21),c(mpg,hp)))
+
+
+test <- table %>%
+  filter(mpg >= 21) %>%
+  select(c(mpg,hp)) %>%
+  mutate(Speed = case_when(mpg >= 20 ~ 1,mpg <= 19 ~ 2))
+  
+  View(test)
+  
+```
+
+### Resources  
+[Learn R for Free](https://www.learnr4free.com/en/index.html)  
+
+[Data Engineering Wiki](https://dataengineering.wiki/Index)  
+
+[CDC IIS Homepage](https://www.cdc.gov/vaccines/programs/iis/index.html)  
