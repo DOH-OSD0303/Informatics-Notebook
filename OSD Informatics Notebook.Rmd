@@ -1,7 +1,7 @@
 ---
 title: "Great Big Codebook of Everything"
 author: "Odane Dunbar"
-date: "Informatician Magician"
+date: "The Informatician Magician"
 output: 
     html_document:
         toc: true
