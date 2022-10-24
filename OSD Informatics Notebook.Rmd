@@ -849,7 +849,36 @@ Git/GitHub [Cheatsheet](https://training.github.com/downloads/github-git-cheat-s
 
 [Tidymodels Package](https://www.tidymodels.org/) R Package for ML   
 
-## GIS in R
+## GIS in R  
+
+### Packages  
+
+- Visualization:  
+
+      -leaflet  
+      
+      -ggplot  
+      
+      -tmap  
+      
+      - rdeck  
+      
+- Data Wrangling:  
+
+      - **sf**  
+      
+      - sp
+
+- Analysis  
+
+      -lm  
+      
+      -variogram  
+      
+      - L K J functions  
+      
+      -SaTScan  
+
 
 ## Misc  
 
