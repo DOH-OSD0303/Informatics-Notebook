@@ -849,6 +849,8 @@ Git/GitHub [Cheatsheet](https://training.github.com/downloads/github-git-cheat-s
 
 [Tidymodels Package](https://www.tidymodels.org/) R Package for ML   
 
+## GIS in R
+
 ## Misc  
 
 ### Reference   
