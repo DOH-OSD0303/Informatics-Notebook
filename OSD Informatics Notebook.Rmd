@@ -53,6 +53,10 @@ pacman::p_load(
 )
 ```
 
+### Useful Packages  
+
+- Create publication ready tables using the [GT Tables](https://gt.rstudio.com/) package.
+
 ## File Maniulation in R
 
 ### Zip/Unzip  
@@ -830,7 +834,7 @@ Git/GitHub [Cheatsheet](https://training.github.com/downloads/github-git-cheat-s
 
 - Model Building   
 
-    - What question is the model answering? Establish          hypothesis.   
+    - What question is the model answering? Establish hypothesis.   
     
     - Obtain data that answers research question.  
     
