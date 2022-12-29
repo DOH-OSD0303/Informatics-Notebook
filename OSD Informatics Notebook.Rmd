@@ -545,8 +545,6 @@ NewTable = pd.merge(df1,df2, how= "outer", on=["var1","var2"])  # outer join
 NewTable = pd.merge(df1,df2, how= "left", on=["var1","var2"])  # left join
 ```
 
-### .join()  
-
 ### concat()   
 ```{python}
 
