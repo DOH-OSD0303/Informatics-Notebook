@@ -620,11 +620,28 @@ result = map(addition, numbers)
 
 For Loop
 ```{python}
-names = ["Odane","Kemar","Dane"]
+basket = ['apples','cherries','oranges']
 
-for name in names :
-  print(name)
+for num in basket:
+    print(num)
+    if num == 'cherries':
+        break
+else:
+    print('no longer available')
 ```
+
+Nest For Loop
+```{python}
+ice_cream = ['vanilla','mint chocolate','chocolate']
+
+toppings = ['rum','raisin','cherry','chip']
+
+for cream in ice_cream:
+    for top in toppings:
+        print(cream + ' ' + top)
+```
+
+Range Function
 ```{python}
 for x in range(5):
   print(x)
@@ -644,6 +661,19 @@ while i < len(names):
 else:
     print("No Longer Less than length of df")
 ```
+
+```{python}
+num = 0
+
+while num < 5:
+    num += 1
+    print(num)
+    if num == 2:
+        break
+else:
+    print('no longer less than 5')
+```
+
 
 ### Exporting  
 ```{python}
