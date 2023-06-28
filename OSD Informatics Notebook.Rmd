@@ -1,7 +1,7 @@
 ---
 title: "Great Big Codebook of Everything"
 author: "Odane Dunbar"
-date: "The Informatician Magician"
+date: "Informatician Magician"
 output: 
     html_document:
         toc: true
@@ -52,10 +52,6 @@ pacman::p_load(
   rmarkdown   # for producing PDFs, Word Documents, PowerPoint, and HTML files
 )
 ```
-
-### Useful Packages  
-
-- Create publication ready tables using the [GT Tables](https://gt.rstudio.com/) package.
 
 ## File Maniulation in R
 
@@ -127,6 +123,32 @@ unlink("file_path",recursive = TRUE)
 #deletes specific file
 unlink("file_name.csv")
 ```
+
+### Renaming Variables in Multiple Files
+
+```{r}
+# read files ----
+file_list <- list.files(path = "file location", pattern = "*.csv$")
+
+# create dictionary
+
+my_dict <- list("oldname" = "old_name")
+
+# loop through files ----
+
+for (i in file_list){
+  df <- read_csv(file.path(path, i))
+  
+  for (k in names(my_dict)){
+    if(k %in% colnames(df)){
+      colnames(df)[colnames(df) == k] <- my_dict[[k]]
+    }
+  }
+  write_csv(df, file.path(path,i))
+}
+
+```
+
 
 ## Data Linkage Workflow
 
@@ -545,6 +567,8 @@ NewTable = pd.merge(df1,df2, how= "outer", on=["var1","var2"])  # outer join
 NewTable = pd.merge(df1,df2, how= "left", on=["var1","var2"])  # left join
 ```
 
+### .join()  
+
 ### concat()   
 ```{python}
 
@@ -618,28 +642,11 @@ result = map(addition, numbers)
 
 For Loop
 ```{python}
-basket = ['apples','cherries','oranges']
+names = ["Odane","Kemar","Dane"]
 
-for num in basket:
-    print(num)
-    if num == 'cherries':
-        break
-else:
-    print('no longer available')
+for name in names :
+  print(name)
 ```
-
-Nest For Loop
-```{python}
-ice_cream = ['vanilla','mint chocolate','chocolate']
-
-toppings = ['rum','raisin','cherry','chip']
-
-for cream in ice_cream:
-    for top in toppings:
-        print(cream + ' ' + top)
-```
-
-Range Function
 ```{python}
 for x in range(5):
   print(x)
@@ -659,19 +666,6 @@ while i < len(names):
 else:
     print("No Longer Less than length of df")
 ```
-
-```{python}
-num = 0
-
-while num < 5:
-    num += 1
-    print(num)
-    if num == 2:
-        break
-else:
-    print('no longer less than 5')
-```
-
 
 ### Exporting  
 ```{python}
@@ -862,7 +856,7 @@ Git/GitHub [Cheatsheet](https://training.github.com/downloads/github-git-cheat-s
 
 - Model Building   
 
-    - What question is the model answering? Establish hypothesis.   
+    - What question is the model answering? Establish          hypothesis.   
     
     - Obtain data that answers research question.  
     
@@ -880,37 +874,6 @@ Git/GitHub [Cheatsheet](https://training.github.com/downloads/github-git-cheat-s
 [Tidymodeling Book](https://www.tmwr.org/) Tidy Modeling with R   
 
 [Tidymodels Package](https://www.tidymodels.org/) R Package for ML   
-
-## GIS in R  
-
-### Packages  
-
-- Visualization:  
-
-      -leaflet  
-      
-      -ggplot  
-      
-      -tmap  
-      
-      - rdeck  
-      
-- Data Wrangling:  
-
-      - **sf**  
-      
-      - sp
-
-- Analysis  
-
-      -lm  
-      
-      -variogram  
-      
-      - L K J functions  
-      
-      -SaTScan  
-
 
 ## Misc  
 
